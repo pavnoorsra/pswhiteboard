@@ -4,16 +4,21 @@ const { Server } = require("socket.io");
 const cors = require("cors");
 
 const app = express();
+
+// ✅ Enable CORS
 app.use(cors());
 
 const server = http.createServer(app);
+
+// ✅ Setup Socket.IO with CORS
 const io = new Server(server, {
   cors: {
-    origin: "*", // IMPORTANT!
+    origin: "*", // Allow all origins (you can replace with frontend link)
     methods: ["GET", "POST"]
   }
 });
 
+// ✅ All socket events
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
@@ -31,6 +36,8 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(3001, () => {
-  console.log("Server running on http://localhost:3001");
+// ✅ Use dynamic port (for Render, Glitch, etc.)
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => {
+  console.log(`✅ Server running on port ${PORT}`);
 });

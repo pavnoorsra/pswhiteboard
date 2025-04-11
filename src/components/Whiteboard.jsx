@@ -2,8 +2,10 @@ import React, { useRef, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import io from "socket.io-client";
 
-const socket = io("https://rural-heavenly-printer.glitch.me");
+const socket = io("https://rural-heavenly-printer.glitch.me")
+transports: ["websocket"] // ADD THIS
 
+;
 
 const Whiteboard = () => {
   const canvasRef = useRef(null);
