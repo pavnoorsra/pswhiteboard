@@ -2,7 +2,8 @@ import React, { useRef, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import io from "socket.io-client";
 
-const socket = io("https://rural-heavenly-printer.glitch.me")
+const socket = io("https://pswhiteboard-backend.onrender.com"); // or whatever your backend link is
+
 transports: ["websocket"] // ADD THIS
 
 ;
