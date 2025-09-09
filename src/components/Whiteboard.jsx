@@ -1,12 +1,8 @@
+// Whiteboard.jsx
 import React, { useRef, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import io from "socket.io-client";
-
-const socket = io("https://pswhiteboard-backend.onrender.com"); // or whatever your backend link is
-
-transports: ["websocket"] // ADD THIS
-
-;
+import { database } from "../firebase";
+import { ref, push, onChildAdded } from "firebase/database";
 
 const Whiteboard = () => {
   const canvasRef = useRef(null);
@@ -19,9 +15,16 @@ const Whiteboard = () => {
     let drawing = false;
     let current = { x: 0, y: 0 };
 
-    socket.emit("join-room", roomID);
+    // Listen for new lines added in Firebase
+    const roomRef = ref(database, `rooms/${roomID}/lines`);
+    onChildAdded(roomRef, (snapshot) => {
+      const line = snapshot.val();
+      if (line) drawLine(line, false);
+    });
 
-    const drawLine = (x0, y0, x1, y1, color, emit) => {
+    // Function to draw a line on canvas
+    const drawLine = (line, emit = true) => {
+      const { x0, y0, x1, y1, color } = line;
       ctx.strokeStyle = color;
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -30,18 +33,12 @@ const Whiteboard = () => {
       ctx.stroke();
       ctx.closePath();
 
+      // Push to Firebase if it's your own drawing
       if (!emit) return;
-
-      socket.emit("drawing", {
-        roomID,
-        x0,
-        y0,
-        x1,
-        y1,
-        color
-      });
+      push(ref(database, `rooms/${roomID}/lines`), line);
     };
 
+    // Mouse events
     const onMouseDown = (e) => {
       drawing = true;
       current.x = e.offsetX;
@@ -54,7 +51,9 @@ const Whiteboard = () => {
       const x = e.offsetX;
       const y = e.offsetY;
 
-      drawLine(current.x, current.y, x, y, "black", true);
+      const line = { x0: current.x, y0: current.y, x1: x, y1: y, color: "black" };
+      drawLine(line, true);
+
       current.x = x;
       current.y = y;
     };
@@ -64,15 +63,13 @@ const Whiteboard = () => {
       drawing = false;
     };
 
-    socket.on("drawing", (data) => {
-      drawLine(data.x0, data.y0, data.x1, data.y1, data.color || "black", false);
-    });
-
+    // Attach event listeners
     canvas.addEventListener("mousedown", onMouseDown);
     canvas.addEventListener("mousemove", onMouseMove);
     canvas.addEventListener("mouseup", onMouseUp);
     canvas.addEventListener("mouseleave", onMouseUp);
 
+    // Cleanup listeners
     return () => {
       canvas.removeEventListener("mousedown", onMouseDown);
       canvas.removeEventListener("mousemove", onMouseMove);
