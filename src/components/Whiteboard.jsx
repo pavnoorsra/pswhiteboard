@@ -4,6 +4,9 @@ import { useParams } from "react-router-dom";
 import { database } from "../firebase";
 import { ref, push, onChildAdded } from "firebase/database";
 
+const CANVAS_WIDTH = 1200;  // landscape width
+const CANVAS_HEIGHT = 700;  // height
+
 const Whiteboard = () => {
   const canvasRef = useRef(null);
   const { roomID } = useParams();
@@ -11,14 +14,6 @@ const Whiteboard = () => {
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
-
-    // Set responsive canvas size
-    const setCanvasSize = () => {
-      canvas.width = window.innerWidth - 20;   // small margin
-      canvas.height = window.innerHeight - 100; // leave space for UI
-    };
-    setCanvasSize();
-    window.addEventListener("resize", setCanvasSize);
 
     let drawing = false;
     let current = { x: 0, y: 0 };
@@ -30,7 +25,7 @@ const Whiteboard = () => {
       if (line) drawLine(line, false);
     });
 
-    // Draw line on canvas
+    // Draw a line
     const drawLine = (line, emit = true) => {
       const { x0, y0, x1, y1, color } = line;
       ctx.strokeStyle = color;
@@ -111,8 +106,6 @@ const Whiteboard = () => {
 
     // Cleanup
     return () => {
-      window.removeEventListener("resize", setCanvasSize);
-
       canvas.removeEventListener("mousedown", onMouseDown);
       canvas.removeEventListener("mousemove", onMouseMove);
       canvas.removeEventListener("mouseup", onMouseUp);
@@ -126,15 +119,25 @@ const Whiteboard = () => {
   }, [roomID]);
 
   return (
-    <canvas
-      ref={canvasRef}
+    <div
       style={{
+        width: "100%",        // container fits screen
+        overflowX: "auto",    // horizontal scroll
+        overflowY: "hidden",  // optional vertical scroll
         border: "2px solid black",
         marginTop: "20px",
-        display: "block",
-        touchAction: "none" // prevents scrolling on touch
       }}
-    />
+    >
+      <canvas
+        ref={canvasRef}
+        width={CANVAS_WIDTH}
+        height={CANVAS_HEIGHT}
+        style={{
+          display: "block",
+          touchAction: "none", // prevent scrolling on touch
+        }}
+      />
+    </div>
   );
 };
 
