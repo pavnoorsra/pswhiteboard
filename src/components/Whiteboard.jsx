@@ -11,6 +11,7 @@ const Whiteboard = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
+    // Set canvas full screen
     const setCanvasSize = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
@@ -20,7 +21,6 @@ const Whiteboard = () => {
 
     let drawing = false;
     let current = { x: 0, y: 0 };
-    let currentStroke = [];
 
     const onTouchStart = (e) => {
       e.preventDefault();
@@ -29,18 +29,23 @@ const Whiteboard = () => {
         const rect = canvas.getBoundingClientRect();
         const x = touch.clientX - rect.left;
         const y = touch.clientY - rect.top;
+
         const text = prompt("Enter text:");
-        if (text) {
-          ctx.fillStyle = "black";
-          ctx.font = "20px Arial";
-          ctx.fillText(text, x, y);
-        }
-        setTextMode(false);
+        if (!text) { setTextMode(false); return; }
+
+        const sizeStr = prompt("Enter font size (e.g., 20):", "20");
+        const fontSize = sizeStr ? parseInt(sizeStr) : 20;
+
+        ctx.fillStyle = "black";
+        ctx.font = `${fontSize}px Arial`;
+        ctx.fillText(text, x, y);
+
+        setTextMode(false); // exit text mode
         return;
       }
 
+      // Start drawing
       drawing = true;
-      currentStroke = [];
       const touch = e.touches[0];
       const rect = canvas.getBoundingClientRect();
       current.x = touch.clientX - rect.left;
@@ -55,14 +60,11 @@ const Whiteboard = () => {
       const x = touch.clientX - rect.left;
       const y = touch.clientY - rect.top;
 
-      const point = { x0: current.x, y0: current.y, x1: x, y1: y };
-      currentStroke.push(point);
-
       ctx.strokeStyle = "black";
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(point.x0, point.y0);
-      ctx.lineTo(point.x1, point.y1);
+      ctx.moveTo(current.x, current.y);
+      ctx.lineTo(x, y);
       ctx.stroke();
       ctx.closePath();
 
@@ -88,16 +90,13 @@ const Whiteboard = () => {
     };
   }, [textMode]);
 
-  // Clear everything manually
   const clearBoard = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   };
 
-  const newPage = () => {
-    clearBoard();
-  };
+  const newPage = () => clearBoard();
 
   const saveAsImage = () => {
     const canvas = canvasRef.current;
