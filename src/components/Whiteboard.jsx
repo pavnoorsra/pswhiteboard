@@ -1,3 +1,4 @@
+// Whiteboard.jsx
 import React, { useRef, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { database } from "../firebase";
@@ -13,7 +14,7 @@ const Whiteboard = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
-    // 📱 Full phone screen canvas
+    // Full phone screen canvas
     const setCanvasSize = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
@@ -92,7 +93,7 @@ const Whiteboard = () => {
     };
   }, [roomID, page]);
 
-  // 🧹 Clear all
+  // Clear all
   const clearBoard = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
@@ -101,7 +102,7 @@ const Whiteboard = () => {
     setLines([]);
   };
 
-  // ↩️ Undo last
+  // Undo last
   const undoLast = () => {
     if (lines.length === 0) return;
     const newLines = lines.slice(0, -1);
@@ -125,7 +126,7 @@ const Whiteboard = () => {
     });
   };
 
-  // ➕ New Page
+  // New Page
   const newPage = () => {
     const newPageID = `page${Date.now()}`;
     setPage(newPageID);
@@ -135,11 +136,26 @@ const Whiteboard = () => {
     setLines([]);
   };
 
-  // 💾 Save as image
+  // Save as image with white background
   const saveAsImage = () => {
+    const canvas = canvasRef.current;
+    const tempCanvas = document.createElement("canvas");
+    const tempCtx = tempCanvas.getContext("2d");
+
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+
+    // Fill background white
+    tempCtx.fillStyle = "#FFFFFF";
+    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+    // Draw original canvas on top
+    tempCtx.drawImage(canvas, 0, 0);
+
+    // Download
     const link = document.createElement("a");
     link.download = `whiteboard-${Date.now()}.png`;
-    link.href = canvasRef.current.toDataURL("image/png");
+    link.href = tempCanvas.toDataURL("image/png");
     link.click();
   };
 
