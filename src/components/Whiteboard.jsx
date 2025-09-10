@@ -1,14 +1,11 @@
 // Whiteboard.jsx
 import React, { useRef, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { database } from "../firebase";
-import { ref, push, onChildAdded, remove } from "firebase/database";
 
 const Whiteboard = () => {
   const canvasRef = useRef(null);
   const { roomID } = useParams();
-  const [lines, setLines] = useState([]);
-  const [page, setPage] = useState("page1");
+  const [textMode, setTextMode] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -25,39 +22,23 @@ const Whiteboard = () => {
     let current = { x: 0, y: 0 };
     let currentStroke = [];
 
-    const pageRef = ref(database, `rooms/${roomID}/${page}/lines`);
-
-    onChildAdded(pageRef, (snapshot) => {
-      const key = snapshot.key;
-      const line = snapshot.val();
-      if (line) {
-        drawLine(line);
-        setLines((prev) => [...prev, { ...line, key }]);
-      }
-    });
-
-    const addStroke = (stroke) => {
-      const lineRef = push(ref(database, `rooms/${roomID}/${page}/lines`));
-      lineRef.set({ stroke });
-      setLines((prev) => [...prev, { stroke, key: lineRef.key }]);
-    };
-
-    const drawLine = (lineObj) => {
-      if (!lineObj.stroke) return;
-      lineObj.stroke.forEach((line) => {
-        const { x0, y0, x1, y1, color } = line;
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(x0, y0);
-        ctx.lineTo(x1, y1);
-        ctx.stroke();
-        ctx.closePath();
-      });
-    };
-
     const onTouchStart = (e) => {
       e.preventDefault();
+      if (textMode) {
+        const touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        const x = touch.clientX - rect.left;
+        const y = touch.clientY - rect.top;
+        const text = prompt("Enter text:");
+        if (text) {
+          ctx.fillStyle = "black";
+          ctx.font = "20px Arial";
+          ctx.fillText(text, x, y);
+        }
+        setTextMode(false);
+        return;
+      }
+
       drawing = true;
       currentStroke = [];
       const touch = e.touches[0];
@@ -68,17 +49,15 @@ const Whiteboard = () => {
 
     const onTouchMove = (e) => {
       e.preventDefault();
-      if (!drawing) return;
+      if (!drawing || textMode) return;
       const touch = e.touches[0];
       const rect = canvas.getBoundingClientRect();
       const x = touch.clientX - rect.left;
       const y = touch.clientY - rect.top;
 
-      const point = { x0: current.x, y0: current.y, x1: x, y1: y, color: "black" };
+      const point = { x0: current.x, y0: current.y, x1: x, y1: y };
       currentStroke.push(point);
 
-      // Draw immediately
-      const ctx = canvasRef.current.getContext("2d");
       ctx.strokeStyle = "black";
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -93,7 +72,6 @@ const Whiteboard = () => {
 
     const onTouchEnd = () => {
       drawing = false;
-      if (currentStroke.length > 0) addStroke(currentStroke);
     };
 
     canvas.addEventListener("touchstart", onTouchStart, { passive: false });
@@ -108,59 +86,19 @@ const Whiteboard = () => {
       canvas.removeEventListener("touchend", onTouchEnd);
       canvas.removeEventListener("touchcancel", onTouchEnd);
     };
-  }, [roomID, page]);
+  }, [textMode]);
 
-  // Clear all
+  // Clear everything manually
   const clearBoard = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    remove(ref(database, `rooms/${roomID}/${page}/lines`));
-    setLines([]);
   };
 
-  // Undo last stroke
-  const undoLast = () => {
-    if (lines.length === 0) return;
-
-    const lastLine = lines[lines.length - 1];
-    remove(ref(database, `rooms/${roomID}/${page}/lines/${lastLine.key}`));
-
-    const newLines = lines.slice(0, -1);
-    setLines(newLines);
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    newLines.forEach((l) => drawStroke(l));
-  };
-
-  const drawStroke = (lineObj) => {
-    if (!lineObj.stroke) return;
-    const ctx = canvasRef.current.getContext("2d");
-    lineObj.stroke.forEach((line) => {
-      const { x0, y0, x1, y1, color } = line;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(x0, y0);
-      ctx.lineTo(x1, y1);
-      ctx.stroke();
-      ctx.closePath();
-    });
-  };
-
-  // New Page
   const newPage = () => {
-    const newPageID = `page${Date.now()}`;
-    setPage(newPageID);
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    setLines([]);
+    clearBoard();
   };
 
-  // Save as image
   const saveAsImage = () => {
     const canvas = canvasRef.current;
     const tempCanvas = document.createElement("canvas");
@@ -198,8 +136,8 @@ const Whiteboard = () => {
           <span style={labelStyle}>Clear</span>
         </div>
         <div style={btnWrapperStyle}>
-          <button style={btnStyle} onTouchStart={undoLast}>↩️</button>
-          <span style={labelStyle}>Undo</span>
+          <button style={btnStyle} onTouchStart={() => setTextMode(true)}>✏️</button>
+          <span style={labelStyle}>Text</span>
         </div>
         <div style={btnWrapperStyle}>
           <button style={btnStyle} onTouchStart={newPage}>➕</button>
@@ -213,11 +151,7 @@ const Whiteboard = () => {
 
       <canvas
         ref={canvasRef}
-        style={{
-          border: "2px solid black",
-          display: "block",
-          touchAction: "none",
-        }}
+        style={{ border: "2px solid black", display: "block", touchAction: "none" }}
       />
     </div>
   );
@@ -234,16 +168,7 @@ const btnStyle = {
   boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
 };
 
-const btnWrapperStyle = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-};
-
-const labelStyle = {
-  fontSize: "12px",
-  marginTop: "2px",
-  color: "#000",
-};
+const btnWrapperStyle = { display: "flex", flexDirection: "column", alignItems: "center" };
+const labelStyle = { fontSize: "12px", marginTop: "2px", color: "#000" };
 
 export default Whiteboard;
