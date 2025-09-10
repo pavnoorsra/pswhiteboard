@@ -2,7 +2,7 @@
 import React, { useRef, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { database } from "../firebase";
-import { ref, push, onChildAdded, remove } from "firebase/database";
+import { ref, push, onChildAdded, remove, set } from "firebase/database";
 
 const Whiteboard = () => {
   const canvasRef = useRef(null);
@@ -25,15 +25,22 @@ const Whiteboard = () => {
     let drawing = false;
     let current = { x: 0, y: 0 };
 
-    // Listen for lines
+    // Listen for lines from Firebase
     const pageRef = ref(database, `rooms/${roomID}/${page}/lines`);
     onChildAdded(pageRef, (snapshot) => {
+      const key = snapshot.key;
       const line = snapshot.val();
       if (line) {
         drawLine(line, false);
-        setLines((prev) => [...prev, line]);
+        setLines((prev) => [...prev, { ...line, key }]);
       }
     });
+
+    const addLine = (line) => {
+      const lineRef = push(ref(database, `rooms/${roomID}/${page}/lines`));
+      lineRef.set(line);
+      setLines((prev) => [...prev, { ...line, key: lineRef.key }]);
+    };
 
     const drawLine = (line, emit = true) => {
       const { x0, y0, x1, y1, color } = line;
@@ -45,8 +52,7 @@ const Whiteboard = () => {
       ctx.stroke();
       ctx.closePath();
 
-      if (!emit) return;
-      push(ref(database, `rooms/${roomID}/${page}/lines`), line);
+      if (emit) addLine(line);
     };
 
     // Touch events
@@ -69,7 +75,6 @@ const Whiteboard = () => {
 
       const line = { x0: current.x, y0: current.y, x1: x, y1: y, color: "black" };
       drawLine(line, true);
-      setLines((prev) => [...prev, line]);
 
       current.x = x;
       current.y = y;
@@ -102,9 +107,13 @@ const Whiteboard = () => {
     setLines([]);
   };
 
-  // Undo last
+  // Undo last line
   const undoLast = () => {
     if (lines.length === 0) return;
+
+    const lastLine = lines[lines.length - 1];
+    remove(ref(database, `rooms/${roomID}/${page}/lines/${lastLine.key}`));
+
     const newLines = lines.slice(0, -1);
     setLines(newLines);
 
@@ -112,9 +121,7 @@ const Whiteboard = () => {
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    remove(ref(database, `rooms/${roomID}/${page}/lines`));
     newLines.forEach((l) => {
-      push(ref(database, `rooms/${roomID}/${page}/lines`), l);
       const { x0, y0, x1, y1, color } = l;
       ctx.strokeStyle = color;
       ctx.lineWidth = 2;
@@ -161,7 +168,7 @@ const Whiteboard = () => {
 
   return (
     <div>
-      {/* Floating buttons */}
+      {/* Floating buttons with labels */}
       <div
         style={{
           position: "fixed",
@@ -169,29 +176,41 @@ const Whiteboard = () => {
           left: "50%",
           transform: "translateX(-50%)",
           display: "flex",
-          gap: "15px",
+          gap: "20px",
           zIndex: 1000,
         }}
       >
-        <button style={btnStyle} onTouchStart={clearBoard}>🧹</button>
-        <button style={btnStyle} onTouchStart={undoLast}>↩️</button>
-        <button style={btnStyle} onTouchStart={newPage}>➕</button>
-        <button style={btnStyle} onTouchStart={saveAsImage}>💾</button>
+        <div style={btnWrapperStyle}>
+          <button style={btnStyle} onTouchStart={clearBoard}>🧹</button>
+          <span style={labelStyle}>Clear</span>
+        </div>
+        <div style={btnWrapperStyle}>
+          <button style={btnStyle} onTouchStart={undoLast}>↩️</button>
+          <span style={labelStyle}>Undo</span>
+        </div>
+        <div style={btnWrapperStyle}>
+          <button style={btnStyle} onTouchStart={newPage}>➕</button>
+          <span style={labelStyle}>New Page</span>
+        </div>
+        <div style={btnWrapperStyle}>
+          <button style={btnStyle} onTouchStart={saveAsImage}>💾</button>
+          <span style={labelStyle}>Save</span>
+        </div>
       </div>
 
-      {/* Canvas */}
       <canvas
         ref={canvasRef}
         style={{
           border: "2px solid black",
           display: "block",
-          touchAction: "none", // prevent page scrolling while drawing
+          touchAction: "none",
         }}
       />
     </div>
   );
 };
 
+// Styles
 const btnStyle = {
   width: "50px",
   height: "50px",
@@ -200,6 +219,18 @@ const btnStyle = {
   border: "1px solid #444",
   background: "#fff",
   boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
+};
+
+const btnWrapperStyle = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+};
+
+const labelStyle = {
+  fontSize: "12px",
+  marginTop: "2px",
+  color: "#000",
 };
 
 export default Whiteboard;
