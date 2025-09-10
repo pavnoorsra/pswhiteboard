@@ -2,7 +2,7 @@
 import React, { useRef, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { database } from "../firebase";
-import { ref, push, onChildAdded, remove, set } from "firebase/database";
+import { ref, push, onChildAdded, remove } from "firebase/database";
 
 const Whiteboard = () => {
   const canvasRef = useRef(null);
@@ -14,7 +14,6 @@ const Whiteboard = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
-    // Full phone screen canvas
     const setCanvasSize = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
@@ -24,41 +23,43 @@ const Whiteboard = () => {
 
     let drawing = false;
     let current = { x: 0, y: 0 };
+    let currentStroke = [];
 
-    // Listen for lines from Firebase
     const pageRef = ref(database, `rooms/${roomID}/${page}/lines`);
+
     onChildAdded(pageRef, (snapshot) => {
       const key = snapshot.key;
       const line = snapshot.val();
       if (line) {
-        drawLine(line, false);
+        drawLine(line);
         setLines((prev) => [...prev, { ...line, key }]);
       }
     });
 
-    const addLine = (line) => {
+    const addStroke = (stroke) => {
       const lineRef = push(ref(database, `rooms/${roomID}/${page}/lines`));
-      lineRef.set(line);
-      setLines((prev) => [...prev, { ...line, key: lineRef.key }]);
+      lineRef.set({ stroke });
+      setLines((prev) => [...prev, { stroke, key: lineRef.key }]);
     };
 
-    const drawLine = (line, emit = true) => {
-      const { x0, y0, x1, y1, color } = line;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(x0, y0);
-      ctx.lineTo(x1, y1);
-      ctx.stroke();
-      ctx.closePath();
-
-      if (emit) addLine(line);
+    const drawLine = (lineObj) => {
+      if (!lineObj.stroke) return;
+      lineObj.stroke.forEach((line) => {
+        const { x0, y0, x1, y1, color } = line;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+        ctx.closePath();
+      });
     };
 
-    // Touch events
     const onTouchStart = (e) => {
       e.preventDefault();
       drawing = true;
+      currentStroke = [];
       const touch = e.touches[0];
       const rect = canvas.getBoundingClientRect();
       current.x = touch.clientX - rect.left;
@@ -73,8 +74,18 @@ const Whiteboard = () => {
       const x = touch.clientX - rect.left;
       const y = touch.clientY - rect.top;
 
-      const line = { x0: current.x, y0: current.y, x1: x, y1: y, color: "black" };
-      drawLine(line, true);
+      const point = { x0: current.x, y0: current.y, x1: x, y1: y, color: "black" };
+      currentStroke.push(point);
+
+      // Draw immediately
+      const ctx = canvasRef.current.getContext("2d");
+      ctx.strokeStyle = "black";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(point.x0, point.y0);
+      ctx.lineTo(point.x1, point.y1);
+      ctx.stroke();
+      ctx.closePath();
 
       current.x = x;
       current.y = y;
@@ -82,6 +93,7 @@ const Whiteboard = () => {
 
     const onTouchEnd = () => {
       drawing = false;
+      if (currentStroke.length > 0) addStroke(currentStroke);
     };
 
     canvas.addEventListener("touchstart", onTouchStart, { passive: false });
@@ -107,7 +119,7 @@ const Whiteboard = () => {
     setLines([]);
   };
 
-  // Undo last line
+  // Undo last stroke
   const undoLast = () => {
     if (lines.length === 0) return;
 
@@ -120,9 +132,14 @@ const Whiteboard = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    newLines.forEach((l) => drawStroke(l));
+  };
 
-    newLines.forEach((l) => {
-      const { x0, y0, x1, y1, color } = l;
+  const drawStroke = (lineObj) => {
+    if (!lineObj.stroke) return;
+    const ctx = canvasRef.current.getContext("2d");
+    lineObj.stroke.forEach((line) => {
+      const { x0, y0, x1, y1, color } = line;
       ctx.strokeStyle = color;
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -143,7 +160,7 @@ const Whiteboard = () => {
     setLines([]);
   };
 
-  // Save as image with white background
+  // Save as image
   const saveAsImage = () => {
     const canvas = canvasRef.current;
     const tempCanvas = document.createElement("canvas");
@@ -152,14 +169,11 @@ const Whiteboard = () => {
     tempCanvas.width = canvas.width;
     tempCanvas.height = canvas.height;
 
-    // Fill background white
     tempCtx.fillStyle = "#FFFFFF";
     tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
-    // Draw original canvas on top
     tempCtx.drawImage(canvas, 0, 0);
 
-    // Download
     const link = document.createElement("a");
     link.download = `whiteboard-${Date.now()}.png`;
     link.href = tempCanvas.toDataURL("image/png");
@@ -168,7 +182,6 @@ const Whiteboard = () => {
 
   return (
     <div>
-      {/* Floating buttons with labels */}
       <div
         style={{
           position: "fixed",
