@@ -1,14 +1,13 @@
-// Whiteboard.jsx
 import React, { useRef, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { database } from "../firebase";
-import { ref, push, onChildAdded, remove, set } from "firebase/database";
+import { ref, push, onChildAdded, remove } from "firebase/database";
 
 const Whiteboard = () => {
   const canvasRef = useRef(null);
   const { roomID } = useParams();
   const [lines, setLines] = useState([]);
-  const [page, setPage] = useState("page1"); // default page
+  const [page, setPage] = useState("page1");
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -17,7 +16,7 @@ const Whiteboard = () => {
     // 📱 Full phone screen canvas
     const setCanvasSize = () => {
       canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight - 150; // leave space for buttons
+      canvas.height = window.innerHeight;
     };
     setCanvasSize();
     window.addEventListener("resize", setCanvasSize);
@@ -25,7 +24,7 @@ const Whiteboard = () => {
     let drawing = false;
     let current = { x: 0, y: 0 };
 
-    // 🔄 Listen for lines in Firebase
+    // Listen for lines
     const pageRef = ref(database, `rooms/${roomID}/${page}/lines`);
     onChildAdded(pageRef, (snapshot) => {
       const line = snapshot.val();
@@ -35,7 +34,6 @@ const Whiteboard = () => {
       }
     });
 
-    // ✏️ Draw line
     const drawLine = (line, emit = true) => {
       const { x0, y0, x1, y1, color } = line;
       ctx.strokeStyle = color;
@@ -48,30 +46,6 @@ const Whiteboard = () => {
 
       if (!emit) return;
       push(ref(database, `rooms/${roomID}/${page}/lines`), line);
-    };
-
-    // Mouse events
-    const onMouseDown = (e) => {
-      drawing = true;
-      current.x = e.offsetX;
-      current.y = e.offsetY;
-    };
-
-    const onMouseMove = (e) => {
-      if (!drawing) return;
-      const x = e.offsetX;
-      const y = e.offsetY;
-
-      const line = { x0: current.x, y0: current.y, x1: x, y1: y, color: "black" };
-      drawLine(line, true);
-      setLines((prev) => [...prev, line]);
-
-      current.x = x;
-      current.y = y;
-    };
-
-    const onMouseUp = () => {
-      drawing = false;
     };
 
     // Touch events
@@ -104,24 +78,13 @@ const Whiteboard = () => {
       drawing = false;
     };
 
-    // Attach events
-    canvas.addEventListener("mousedown", onMouseDown);
-    canvas.addEventListener("mousemove", onMouseMove);
-    canvas.addEventListener("mouseup", onMouseUp);
-    canvas.addEventListener("mouseleave", onMouseUp);
-
-    canvas.addEventListener("touchstart", onTouchStart);
-    canvas.addEventListener("touchmove", onTouchMove);
+    canvas.addEventListener("touchstart", onTouchStart, { passive: false });
+    canvas.addEventListener("touchmove", onTouchMove, { passive: false });
     canvas.addEventListener("touchend", onTouchEnd);
     canvas.addEventListener("touchcancel", onTouchEnd);
 
-    // Cleanup
     return () => {
       window.removeEventListener("resize", setCanvasSize);
-      canvas.removeEventListener("mousedown", onMouseDown);
-      canvas.removeEventListener("mousemove", onMouseMove);
-      canvas.removeEventListener("mouseup", onMouseUp);
-      canvas.removeEventListener("mouseleave", onMouseUp);
       canvas.removeEventListener("touchstart", onTouchStart);
       canvas.removeEventListener("touchmove", onTouchMove);
       canvas.removeEventListener("touchend", onTouchEnd);
@@ -182,12 +145,22 @@ const Whiteboard = () => {
 
   return (
     <div>
-      {/* Buttons */}
-      <div style={{ display: "flex", gap: "10px", margin: "10px" }}>
-        <button onClick={clearBoard}>🧹</button>
-        <button onClick={undoLast}>↩️</button>
-        <button onClick={newPage}>➕</button>
-        <button onClick={saveAsImage}>💾</button>
+      {/* Floating buttons */}
+      <div
+        style={{
+          position: "fixed",
+          top: 10,
+          left: "50%",
+          transform: "translateX(-50%)",
+          display: "flex",
+          gap: "15px",
+          zIndex: 1000,
+        }}
+      >
+        <button style={btnStyle} onTouchStart={clearBoard}>🧹</button>
+        <button style={btnStyle} onTouchStart={undoLast}>↩️</button>
+        <button style={btnStyle} onTouchStart={newPage}>➕</button>
+        <button style={btnStyle} onTouchStart={saveAsImage}>💾</button>
       </div>
 
       {/* Canvas */}
@@ -196,11 +169,21 @@ const Whiteboard = () => {
         style={{
           border: "2px solid black",
           display: "block",
-          touchAction: "none", // prevent page scroll while drawing
+          touchAction: "none", // prevent page scrolling while drawing
         }}
       />
     </div>
   );
+};
+
+const btnStyle = {
+  width: "50px",
+  height: "50px",
+  fontSize: "24px",
+  borderRadius: "50%",
+  border: "1px solid #444",
+  background: "#fff",
+  boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
 };
 
 export default Whiteboard;
