@@ -135,10 +135,6 @@ const Whiteboard = () => {
           <span style={labelStyle}>Clear</span>
         </div>
         <div style={btnWrapperStyle}>
-          <button style={btnStyle} onTouchStart={() => setTextMode(true)}>✏️</button>
-          <span style={labelStyle}>Text</span>
-        </div>
-        <div style={btnWrapperStyle}>
           <button style={btnStyle} onTouchStart={newPage}>➕</button>
           <span style={labelStyle}>New Page</span>
         </div>
